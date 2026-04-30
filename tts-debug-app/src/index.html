@@ -536,10 +536,10 @@ input,textarea,select{font-family:inherit}
     <div class="card">
       <div class="card-title"><span class="icon">📝</span> 合成文本</div>
       <div style="margin-bottom:8px;font-size:12px;color:var(--text2)">
-        <span id="tagInsertHint">在文本任意位置插入 <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">[音频标签]</code> 进行细粒度控制</span>
+        <span id="tagInsertHint">在文本任意位置插入 <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">(标签)</code> 进行细粒度控制</span>
       </div>
       <div class="text-area-wrap">
-        <textarea id="synthText" placeholder="输入要合成的文本内容...&#10;&#10;示例: 嘿嘿，你猜怎么着？我刚才在路上捡到一百块钱！[笑] 运气好到我自己都不敢相信。" oninput="updateRequestPreview();updateCharCount()"></textarea>
+        <textarea id="synthText" placeholder="输入要合成的文本内容...&#10;&#10;示例: (开心 激动)嘿嘿，你猜怎么着？我刚才在路上捡到一百块钱！运气好到我自己都不敢相信。" oninput="updateRequestPreview();updateCharCount()"></textarea>
         <span class="char-count" id="charCount">0 字</span>
       </div>
     </div>
@@ -722,6 +722,18 @@ const state = {
   loadingTimer: null,
 };
 
+// Load history from localStorage
+(function loadHistory() {
+  try {
+    const saved = localStorage.getItem('mimo_tts_history');
+    if (saved) {
+      const items = JSON.parse(saved);
+      state.history = items.map(h => ({ ...h, audioUrl: null, blob: null }));
+      renderHistory();
+    }
+  } catch (e) { /* ignore */ }
+})();
+
 // ===== Dimension Templates =====
 const dimensionTemplates = {
   gender: '"一位三十多岁的女性"',
@@ -807,7 +819,7 @@ function insertAudioTag(tag) {
   const textArea = document.getElementById('synthText');
   const cursorPos = textArea.selectionStart;
   const text = textArea.value;
-  const insert = `[${tag}]`;
+  const insert = `(${tag})`;
   textArea.value = text.slice(0, cursorPos) + insert + text.slice(cursorPos);
   textArea.focus();
   textArea.setSelectionRange(cursorPos + insert.length, cursorPos + insert.length);
@@ -1397,6 +1409,7 @@ function addToHistory(text, req, audioUrl, size, elapsedMs) {
     model: req.model,
     voice: state.model === 'mimo-v2.5-tts-voicedesign' ? '自定义' : (state.model === 'mimo-v2.5-tts-voiceclone' ? '复刻' : state.voice),
     audioUrl,
+    blob: state.audioBlob,
     size,
     elapsedMs,
     time: new Date().toLocaleTimeString(),
@@ -1434,9 +1447,20 @@ function renderHistory() {
 function playHistory(index) {
   const item = state.history[index];
   if (!item) return;
-  if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
-  state.audioUrl = item.audioUrl;
-  state.audioBlob = null; // We don't keep the blob, but URL should still work
+
+  // Revoke old URL if it exists
+  if (state.audioUrl && state.audioUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(state.audioUrl);
+  }
+
+  // For history items, handle both URL and blob
+  if (item.audioUrl) {
+    state.audioUrl = item.audioUrl;
+    state.audioBlob = item.blob || null;
+  } else {
+    showToast('历史记录已过期', 'error');
+    return;
+  }
 
   document.getElementById('playerCard').style.display = '';
   document.getElementById('playerTitle').textContent = item.text.slice(0, 40) + (item.text.length > 40 ? '...' : '');

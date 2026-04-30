@@ -1179,7 +1179,7 @@
         <div class="api-config">
           <div class="config-row">
             <label>API Key</label>
-            <input type="password" id="apiKeyInput" value="APIKEY填入">
+            <input type="password" id="apiKeyInput" value="" placeholder="请输入 API Key">
           </div>
           <div class="config-row">
             <label>Base URL</label>
@@ -1648,11 +1648,10 @@
       history: [],
       audioBlob: null,
       audioUrl: null,
+      audioElement: null,
       cloneFile: null,
       cloneBase64: null,
       isPlaying: false,
-      audioContext: null,
-      audioSource: null,
       loadingTimer: null,
     };
 
@@ -2203,38 +2202,34 @@ print("Audio saved to output.wav")`;
       const btn = document.getElementById('playBtn');
 
       if (state.isPlaying) {
-        if (state.audioSource) {
-          state.audioSource.stop();
-          state.audioSource = null;
+        if (state.audioElement) {
+          state.audioElement.pause();
+          state.audioElement.currentTime = 0;
         }
         state.isPlaying = false;
         btn.textContent = '▶';
         return;
       }
 
-      if (!state.audioContext) {
-        state.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      if (!state.audioElement) {
+        state.audioElement = new Audio();
+        state.audioElement.onended = () => {
+          state.isPlaying = false;
+          btn.textContent = '▶';
+        };
+        state.audioElement.onerror = () => {
+          state.isPlaying = false;
+          btn.textContent = '▶';
+          showToast('播放失败，请尝试下载后播放', 'error');
+        };
       }
 
-      const ctx = state.audioContext;
-      fetch(state.audioUrl)
-        .then(r => r.arrayBuffer())
-        .then(buf => ctx.decodeAudioData(buf))
-        .then(audioBuffer => {
-          const source = ctx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(ctx.destination);
-          source.onended = () => {
-            state.isPlaying = false;
-            btn.textContent = '▶';
-          };
-          source.start(0);
-          state.audioSource = source;
+      state.audioElement.src = state.audioUrl;
+      state.audioElement.play()
+        .then(() => {
           state.isPlaying = true;
           btn.textContent = '⏸';
-
-          // Animate waveform
-          animateWaveform(source, audioBuffer.duration);
+          animateWaveform();
         })
         .catch(err => {
           console.error('Playback error:', err);
@@ -2242,14 +2237,14 @@ print("Audio saved to output.wav")`;
         });
     }
 
-    function animateWaveform(source, duration) {
+    function animateWaveform() {
       const bars = document.querySelectorAll('#playerWave .bar');
       const timeEl = document.getElementById('playerTime');
-      const startTime = performance.now();
 
       function update() {
-        if (!state.isPlaying) return;
-        const elapsed = (performance.now() - startTime) / 1000;
+        if (!state.isPlaying || !state.audioElement) return;
+        const elapsed = state.audioElement.currentTime;
+        const duration = state.audioElement.duration || 1;
         const progress = Math.min(elapsed / duration, 1);
         const mins = Math.floor(elapsed / 60);
         const secs = Math.floor(elapsed % 60);
@@ -2280,10 +2275,33 @@ print("Audio saved to output.wav")`;
 
     function downloadAudio() {
       if (!state.audioBlob) return;
-      const a = document.createElement('a');
-      a.href = state.audioUrl;
-      a.download = `tts_${Date.now()}.${state.audioFormat === 'wav' ? 'wav' : 'pcm'}`;
-      a.click();
+      const ext = state.audioFormat === 'wav' ? 'wav' : 'pcm';
+      const defaultName = `tts_${Date.now()}.${ext}`;
+
+      if (window.__TAURI__) {
+        // Tauri environment
+        window.__TAURI__.dialog.save({
+          defaultPath: defaultName,
+          filters: [{ name: 'Audio', extensions: [ext] }]
+        }).then(filePath => {
+          if (filePath) {
+            state.audioBlob.arrayBuffer().then(arrayBuffer => {
+              const uint8Array = new Uint8Array(arrayBuffer);
+              window.__TAURI__.fs.writeFile(filePath, uint8Array).then(() => {
+                showToast('音频已保存', 'success');
+              });
+            });
+          }
+        }).catch(err => {
+          showToast('保存失败: ' + err.message, 'error');
+        });
+      } else {
+        // Web environment
+        const a = document.createElement('a');
+        a.href = state.audioUrl;
+        a.download = defaultName;
+        a.click();
+      }
     }
 
     function copyAudioBase64() {
@@ -2303,6 +2321,7 @@ print("Audio saved to output.wav")`;
         model: req.model,
         voice: state.model === 'mimo-v2.5-tts-voicedesign' ? '自定义' : (state.model === 'mimo-v2.5-tts-voiceclone' ? '复刻' : state.voice),
         audioUrl,
+        blob: state.audioBlob,
         size,
         elapsedMs,
         time: new Date().toLocaleTimeString(),
@@ -2340,9 +2359,20 @@ print("Audio saved to output.wav")`;
     function playHistory(index) {
       const item = state.history[index];
       if (!item) return;
-      if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
-      state.audioUrl = item.audioUrl;
-      state.audioBlob = null; // We don't keep the blob, but URL should still work
+
+      // Create a new URL from stored blob or URL
+      if (state.audioUrl && state.audioUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(state.audioUrl);
+      }
+
+      // For history items, we need to handle both URL and blob
+      if (item.audioUrl) {
+        state.audioUrl = item.audioUrl;
+        state.audioBlob = item.blob || null;
+      } else {
+        showToast('历史记录已过期', 'error');
+        return;
+      }
 
       document.getElementById('playerCard').style.display = '';
       document.getElementById('playerTitle').textContent = item.text.slice(0, 40) + (item.text.length > 40 ? '...' : '');
