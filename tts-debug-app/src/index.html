@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiMo V2.5 TTS 调试平台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a26;--surface3:#22223a;
+  --border:#2a2a3e;--border-active:#6366f1;
+  --text:#e4e4ed;--text2:#9d9db5;--text3:#6b6b82;
+  --accent:#6366f1;--accent2:#818cf8;--accent-glow:rgba(99,102,241,.15);
+  --green:#34d399;--green-glow:rgba(52,211,153,.15);
+  --orange:#fb923c;--orange-glow:rgba(251,146,60,.15);
+  --pink:#f472b6;--pink-glow:rgba(244,114,182,.15);
+  --cyan:#22d3ee;--cyan-glow:rgba(34,211,238,.15);
+  --red:#f87171;
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+button{cursor:pointer;font-family:inherit}
+input,textarea,select{font-family:inherit}
+
+/* Layout */
+.app{display:grid;grid-template-columns:320px 1fr 380px;grid-template-rows:auto 1fr;height:100vh}
+.header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);z-index:100}
+.header h1{font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px}
+.header h1 .logo{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--pink));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.header-actions{display:flex;gap:8px;align-items:center}
+
+.left-panel{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px}
+.center-panel{background:var(--bg);overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.right-panel{background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;padding:16px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+
+/* Cards */
+.card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:border-color .2s}
+.card:hover{border-color:var(--border-active)}
+.card-title{font-size:13px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .icon{font-size:16px}
+
+/* Model Selector */
+.model-cards{display:flex;flex-direction:column;gap:8px}
+.model-card{padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all .2s;background:var(--surface2)}
+.model-card:hover{border-color:var(--accent);background:var(--accent-glow)}
+.model-card.active{border-color:var(--accent);background:var(--accent-glow);box-shadow:0 0 20px var(--accent-glow)}
+.model-card .model-name{font-size:14px;font-weight:600;margin-bottom:4px}
+.model-card .model-id{font-size:11px;color:var(--text3);font-family:'SF Mono',Monaco,monospace}
+.model-card .model-desc{font-size:12px;color:var(--text2);margin-top:6px}
+
+/* Voice Grid */
+.voice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.voice-chip{padding:10px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);text-align:center;cursor:pointer;transition:all .2s;background:var(--surface3);position:relative;overflow:hidden}
+.voice-chip:hover{border-color:var(--accent);transform:translateY(-1px)}
+.voice-chip.active{border-color:var(--accent);background:var(--accent-glow);box-shadow:0 0 15px var(--accent-glow)}
+.voice-chip .voice-name{font-size:13px;font-weight:600}
+.voice-chip .voice-gender{font-size:10px;color:var(--text3);margin-top:2px}
+.voice-chip .voice-lang{font-size:10px;color:var(--text3)}
+.voice-chip .voice-avatar{width:32px;height:32px;border-radius:50%;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.voice-chip .voice-avatar.female{background:linear-gradient(135deg,var(--pink),var(--purple,#a78bfa))}
+.voice-chip .voice-avatar.male{background:linear-gradient(135deg,var(--cyan),var(--accent))}
+
+/* Tag Palette */
+.tag-section{margin-bottom:12px}
+.tag-section-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.tag-group{display:flex;flex-wrap:wrap;gap:4px}
+.tag-btn{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface3);color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.tag-btn:hover{border-color:var(--accent);color:var(--text);background:var(--accent-glow)}
+.tag-btn.emotion{border-color:rgba(244,114,182,.3)}
+.tag-btn.emotion:hover{border-color:var(--pink);background:var(--pink-glow);color:var(--pink)}
+.tag-btn.expression{border-color:rgba(251,146,60,.3)}
+.tag-btn.expression:hover{border-color:var(--orange);background:var(--orange-glow);color:var(--orange)}
+.tag-btn.pace{border-color:rgba(34,211,238,.3)}
+.tag-btn.pace:hover{border-color:var(--cyan);background:var(--cyan-glow);color:var(--cyan)}
+.tag-btn.style{border-color:rgba(99,102,241,.3)}
+.tag-btn.style:hover{border-color:var(--accent);background:var(--accent-glow);color:var(--accent2)}
+.tag-btn.dialect{border-color:rgba(52,211,153,.3)}
+.tag-btn.dialect:hover{border-color:var(--green);background:var(--green-glow);color:var(--green)}
+
+/* Text Editor */
+.text-area-wrap{position:relative}
+.text-area-wrap textarea{width:100%;min-height:120px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;color:var(--text);font-size:14px;line-height:1.6;resize:vertical;outline:none;transition:border-color .2s}
+.text-area-wrap textarea:focus{border-color:var(--accent)}
+.text-area-wrap textarea::placeholder{color:var(--text3)}
+.text-area-wrap .char-count{position:absolute;bottom:8px;right:12px;font-size:11px;color:var(--text3)}
+
+/* Style Mode Tabs */
+.mode-tabs{display:flex;gap:4px;margin-bottom:12px}
+.mode-tab{flex:1;padding:8px;border-radius:var(--radius-xs);border:1px solid var(--border);background:var(--surface3);color:var(--text2);font-size:12px;font-weight:500;text-align:center;transition:all .2s}
+.mode-tab:hover{border-color:var(--accent);color:var(--text)}
+.mode-tab.active{border-color:var(--accent);background:var(--accent-glow);color:var(--accent2)}
+
+/* Director Mode */
+.director-fields{display:flex;flex-direction:column;gap:10px}
+.director-field label{display:block;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.director-field textarea{width:100%;min-height:60px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px;color:var(--text);font-size:13px;line-height:1.5;resize:vertical;outline:none;transition:border-color .2s}
+.director-field textarea:focus{border-color:var(--accent)}
+
+/* Voice Design Builder */
+.dimension-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.dim-chip{padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface3);color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s}
+.dim-chip:hover{border-color:var(--accent);background:var(--accent-glow)}
+.dim-chip.selected{border-color:var(--green);background:var(--green-glow);color:var(--green)}
+.dim-chip .dim-label{font-weight:600;margin-right:4px}
+
+/* Voice Clone Upload */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;transition:all .2s;cursor:pointer;position:relative}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:var(--accent-glow)}
+.upload-zone .upload-icon{font-size:32px;margin-bottom:8px}
+.upload-zone .upload-text{font-size:13px;color:var(--text2)}
+.upload-zone .upload-hint{font-size:11px;color:var(--text3);margin-top:4px}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.uploaded-file{display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface3);border-radius:var(--radius-sm);margin-top:8px}
+.uploaded-file .file-icon{font-size:20px}
+.uploaded-file .file-info{flex:1}
+.uploaded-file .file-name{font-size:13px;font-weight:500}
+.uploaded-file .file-size{font-size:11px;color:var(--text3)}
+.uploaded-file .file-remove{background:none;border:none;color:var(--text3);font-size:16px;padding:4px}
+.uploaded-file .file-remove:hover{color:var(--red)}
+
+/* Buttons */
+.btn{padding:10px 20px;border-radius:var(--radius-sm);border:none;font-size:13px;font-weight:600;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#8b5cf6);color:#fff;box-shadow:0 2px 10px var(--accent-glow)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px var(--accent-glow)}
+.btn-primary:active{transform:translateY(0)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--accent)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-block{width:100%;justify-content:center}
+.btn-icon{width:36px;height:36px;padding:0;justify-content:center;border-radius:var(--radius-xs)}
+
+/* Format Selector */
+.format-select{background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;color:var(--text);font-size:13px;outline:none;transition:border-color .2s;width:100%}
+.format-select:focus{border-color:var(--accent)}
+
+/* API Preview */
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-family:'SF Mono',Monaco,'Cascadia Code',monospace;font-size:12px;line-height:1.5;color:var(--text2);overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;position:relative}
+.code-block .copy-btn{position:absolute;top:8px;right:8px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-xs);color:var(--text2);padding:4px 8px;font-size:11px;cursor:pointer;transition:all .15s}
+.code-block .copy-btn:hover{border-color:var(--accent);color:var(--accent2)}
+.code-lang-tabs{display:flex;gap:4px;margin-bottom:8px}
+.code-lang-tab{padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface3);color:var(--text3);font-size:11px;cursor:pointer;transition:all .15s}
+.code-lang-tab.active{border-color:var(--accent);background:var(--accent-glow);color:var(--accent2)}
+
+/* Audio Player */
+.player-bar{display:flex;align-items:center;gap:12px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius)}
+.player-btn{width:40px;height:40px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--accent),#8b5cf6);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-shrink:0}
+.player-btn:hover{transform:scale(1.05);box-shadow:0 2px 12px var(--accent-glow)}
+.player-info{flex:1;min-width:0}
+.player-title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-meta{font-size:11px;color:var(--text3);display:flex;gap:8px;margin-top:2px}
+.player-wave{flex:1;height:40px;display:flex;align-items:center;gap:2px}
+.player-wave .bar{width:3px;background:var(--accent);border-radius:2px;transition:height .1s}
+.player-time{font-size:11px;color:var(--text3);font-family:'SF Mono',Monaco,monospace;flex-shrink:0}
+
+/* History */
+.history-item{display:flex;gap:10px;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:all .15s;background:var(--surface2)}
+.history-item:hover{border-color:var(--accent);background:var(--accent-glow)}
+.history-item .h-play{width:32px;height:32px;border-radius:50%;background:var(--accent-glow);border:1px solid var(--accent);color:var(--accent2);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.history-item .h-info{flex:1;min-width:0}
+.history-item .h-text{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-item .h-meta{font-size:10px;color:var(--text3);margin-top:2px;display:flex;gap:8px}
+.history-item .h-badge{font-size:10px;padding:1px 6px;border-radius:10px;background:var(--accent-glow);color:var(--accent2)}
+
+/* Preset Styles */
+.preset-styles{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.preset-style{padding:8px 10px;border-radius:var(--radius-xs);border:1px solid var(--border);background:var(--surface3);color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;text-align:center}
+.preset-style:hover{border-color:var(--accent);background:var(--accent-glow);color:var(--text)}
+
+/* Loading */
+.loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
+.loading-spinner{text-align:center}
+.loading-spinner .spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
+.loading-spinner .loading-text{font-size:13px;color:var(--text2)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:var(--radius-sm);background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:13px;z-index:2000;animation:toast-in .3s ease}
+.toast.success{border-color:var(--green);background:var(--green-glow);color:var(--green)}
+.toast.error{border-color:var(--red);color:var(--red)}
+@keyframes toast-in{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* Collapse */
+.collapsible-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.collapsible-header .arrow{transition:transform .2s;font-size:10px;color:var(--text3)}
+.collapsible-header .arrow.open{transform:rotate(90deg)}
+.collapsible-body{overflow:hidden;transition:max-height .3s ease}
+
+/* Tab indicator on left panel */
+.section-divider{height:1px;background:var(--border);margin:16px 0}
+
+/* Responsive */
+@media(max-width:1200px){.app{grid-template-columns:280px 1fr 320px}}
+@media(max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr auto}.left-panel,.right-panel{max-height:50vh}}
+
+/* Placeholder for no audio */
+.no-audio{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;text-align:center;color:var(--text3)}
+.no-audio .no-audio-icon{font-size:40px;margin-bottom:12px;opacity:.5}
+.no-audio .no-audio-text{font-size:13px}
+
+/* Highlight selected tags in text preview */
+.tag-highlight{color:var(--orange);font-weight:500}
+
+/* Tooltip */
+[data-tooltip]{position:relative}
+[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:4px 10px;border-radius:var(--radius-xs);background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11px;white-space:nowrap;z-index:100;pointer-events:none}
+
+/* Line connector in left panel */
+.panel-section{margin-bottom:4px}
+.panel-section + .panel-section{padding-top:4px}
+
+/* Status dot */
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.status-dot.ready{background:var(--green)}
+.status-dot.busy{background:var(--orange);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* TTS API Config */
+.api-config{display:flex;flex-direction:column;gap:8px}
+.config-row{display:flex;align-items:center;gap:8px}
+.config-row label{font-size:12px;color:var(--text2);min-width:60px}
+.config-row input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px;color:var(--text);font-size:12px;outline:none}
+.config-row input:focus{border-color:var(--accent)}
+
+/* Request timing */
+.timing{display:flex;gap:12px;padding:8px 12px;background:var(--bg);border-radius:var(--radius-xs);margin-top:8px}
+.timing .t-item{font-size:11px;color:var(--text3)}
+.timing .t-val{color:var(--green);font-family:'SF Mono',Monaco,monospace}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <h1><span class="logo">🎙</span> MiMo V2.5 TTS 调试平台</h1>
+    <div class="header-actions">
+      <span class="status-dot ready" id="statusDot"></span>
+      <span style="font-size:12px;color:var(--text3)" id="statusText">就绪</span>
+      <button class="btn btn-secondary btn-sm" onclick="toggleApiConfig()">⚙ API配置</button>
+    </div>
+  </div>
+
+  <!-- Left Panel: Config -->
+  <div class="left-panel">
+    <!-- API Config (hidden by default) -->
+    <div class="card" id="apiConfigCard" style="display:none;margin-bottom:16px">
+      <div class="card-title"><span class="icon">⚙</span> API 配置</div>
+      <div class="api-config">
+        <div class="config-row">
+          <label>API Key</label>
+          <input type="password" id="apiKeyInput" value="" placeholder="请输入 API Key">
+        </div>
+        <div class="config-row">
+          <label>Base URL</label>
+          <input type="text" id="baseUrlInput" value="https://token-plan-sgp.xiaomimimo.com/v1">
+        </div>
+        <button class="btn btn-secondary btn-sm btn-block" onclick="saveApiConfig()">保存配置</button>
+      </div>
+    </div>
+
+    <!-- Model Selector -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title"><span class="icon">🤖</span> 模型选择</div>
+      <div class="model-cards">
+        <div class="model-card active" data-model="mimo-v2.5-tts" onclick="selectModel(this)">
+          <div class="model-name">预置音色合成</div>
+          <div class="model-id">mimo-v2.5-tts</div>
+          <div class="model-desc">内置精品音色，开箱即用，支持唱歌模式</div>
+        </div>
+        <div class="model-card" data-model="mimo-v2.5-tts-voicedesign" onclick="selectModel(this)">
+          <div class="model-name">音色设计合成</div>
+          <div class="model-id">mimo-v2.5-tts-voicedesign</div>
+          <div class="model-desc">通过文本描述自定义音色，无需音频样本</div>
+        </div>
+        <div class="model-card" data-model="mimo-v2.5-tts-voiceclone" onclick="selectModel(this)">
+          <div class="model-name">音色复刻合成</div>
+          <div class="model-id">mimo-v2.5-tts-voiceclone</div>
+          <div class="model-desc">基于音频样本精准复刻音色</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Voice Selector (Preset) -->
+    <div class="card" id="voiceSelectorCard" style="margin-bottom:16px">
+      <div class="card-title"><span class="icon">🎵</span> 预置音色</div>
+      <div class="voice-grid" id="voiceGrid">
+        <div class="voice-chip active" data-voice="冰糖" onclick="selectVoice(this)">
+          <div class="voice-avatar female">🍬</div>
+          <div class="voice-name">冰糖</div>
+          <div class="voice-gender">女</div>
+          <div class="voice-lang">中文</div>
+        </div>
+        <div class="voice-chip" data-voice="茉莉" onclick="selectVoice(this)">
+          <div class="voice-avatar female">🌸</div>
+          <div class="voice-name">茉莉</div>
+          <div class="voice-gender">女</div>
+          <div class="voice-lang">中文</div>
+        </div>
+        <div class="voice-chip" data-voice="苏打" onclick="selectVoice(this)">
+          <div class="voice-avatar male">🧊</div>
+          <div class="voice-name">苏打</div>
+          <div class="voice-gender">男</div>
+          <div class="voice-lang">中文</div>
+        </div>
+        <div class="voice-chip" data-voice="白桦" onclick="selectVoice(this)">
+          <div class="voice-avatar male">🌲</div>
+          <div class="voice-name">白桦</div>
+          <div class="voice-gender">男</div>
+          <div class="voice-lang">中文</div>
+        </div>
+        <div class="voice-chip" data-voice="Mia" onclick="selectVoice(this)">
+          <div class="voice-avatar female">✨</div>
+          <div class="voice-name">Mia</div>
+          <div class="voice-gender">女</div>
+          <div class="voice-lang">英文</div>
+        </div>
+        <div class="voice-chip" data-voice="Chloe" onclick="selectVoice(this)">
+          <div class="voice-avatar female">🦋</div>
+          <div class="voice-name">Chloe</div>
+          <div class="voice-gender">女</div>
+          <div class="voice-lang">英文</div>
+        </div>
+        <div class="voice-chip" data-voice="Milo" onclick="selectVoice(this)">
+          <div class="voice-avatar male">🎯</div>
+          <div class="voice-name">Milo</div>
+          <div class="voice-gender">男</div>
+          <div class="voice-lang">英文</div>
+        </div>
+        <div class="voice-chip" data-voice="Dean" onclick="selectVoice(this)">
+          <div class="voice-avatar male">🔥</div>
+          <div class="voice-name">Dean</div>
+          <div class="voice-gender">男</div>
+          <div class="voice-lang">英文</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Voice Design (hidden by default) -->
+    <div class="card" id="voiceDesignCard" style="display:none;margin-bottom:16px">
+      <div class="card-title"><span class="icon">🎨</span> 音色设计描述</div>
+      <div class="tag-section">
+        <div class="tag-section-title">快速填充维度</div>
+        <div class="dimension-chips" id="dimChips">
+          <div class="dim-chip" onclick="insertDimension(this,'gender')"><span class="dim-label">性别年龄</span></div>
+          <div class="dim-chip" onclick="insertDimension(this,'texture')"><span class="dim-label">音色质感</span></div>
+          <div class="dim-chip" onclick="insertDimension(this,'emotion')"><span class="dim-label">情绪语气</span></div>
+          <div class="dim-chip" onclick="insertDimension(this,'pace')"><span class="dim-label">语速节奏</span></div>
+          <div class="dim-chip" onclick="insertDimension(this,'role')"><span class="dim-label">角色人设</span></div>
+          <div class="dim-chip" onclick="insertDimension(this,'style')"><span class="dim-label">说话风格</span></div>
+          <div class="dim-chip" onclick="insertDimension(this,'scene')"><span class="dim-label">场景描写</span></div>
+          <div class="dim-chip" onclick="insertDimension(this,'era')"><span class="dim-label">年代参照</span></div>
+        </div>
+      </div>
+      <div class="text-area-wrap">
+        <textarea id="voiceDesignPrompt" placeholder="描述你想要的音色...&#10;&#10;示例: 一位年迈的老先生，说带北方口音的普通话，语速缓慢而沉稳，嗓音略带沙哑和沧桑感"></textarea>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="generateSampleText()">✨ 生成适配文本</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadDesignPreset('asmr')">🎧 ASMR</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadDesignPreset('narrator')">📖 旁白</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadDesignPreset('radio')">📻 电台</button>
+      </div>
+    </div>
+
+    <!-- Voice Clone (hidden by default) -->
+    <div class="card" id="voiceCloneCard" style="display:none;margin-bottom:16px">
+      <div class="card-title"><span class="icon">👥</span> 音色复刻</div>
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">拖拽或点击上传音频样本</div>
+        <div class="upload-hint">支持 MP3 / WAV，Base64 编码后不超过 10MB</div>
+        <input type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" onchange="handleFileUpload(event)">
+      </div>
+      <div id="uploadedFileWrap"></div>
+    </div>
+
+    <!-- Output Format -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title"><span class="icon">🔊</span> 输出设置</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <label style="font-size:12px;color:var(--text2);min-width:50px">格式</label>
+        <select class="format-select" id="audioFormat" onchange="updateRequestPreview()">
+          <option value="wav">WAV (非流式推荐)</option>
+          <option value="pcm16">PCM16 (流式推荐)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:12px;color:var(--text2);min-width:50px">模式</label>
+        <select class="format-select" id="streamMode" onchange="updateRequestPreview()">
+          <option value="false">非流式 (等待完整结果)</option>
+          <option value="true">流式 (兼容模式)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center Panel: Editor & Player -->
+  <div class="center-panel">
+    <!-- Style Control -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🎭</span> 风格控制</div>
+      <div class="mode-tabs" id="styleModeTabs">
+        <div class="mode-tab active" data-mode="natural" onclick="setStyleMode('natural')">自然语言</div>
+        <div class="mode-tab" data-mode="tag" onclick="setStyleMode('tag')">音频标签</div>
+        <div class="mode-tab" data-mode="director" onclick="setStyleMode('director')">导演模式</div>
+      </div>
+
+      <!-- Natural Language Mode -->
+      <div id="naturalMode">
+        <div style="margin-bottom:8px">
+          <div class="tag-section-title" style="margin-bottom:6px">快捷风格模板</div>
+          <div class="preset-styles">
+            <div class="preset-style" onclick="applyPresetStyle('播报')">📰 新闻播报</div>
+            <div class="preset-style" onclick="applyPresetStyle('温柔')">🌙 温柔低语</div>
+            <div class="preset-style" onclick="applyPresetStyle('激动')">🎉 激动报喜</div>
+            <div class="preset-style" onclick="applyPresetStyle('悲伤')">😢 悲伤独白</div>
+            <div class="preset-style" onclick="applyPresetStyle('搞笑')">🤪 搞笑吐槽</div>
+            <div class="preset-style" onclick="applyPresetStyle('电台')">📻 深夜电台</div>
+          </div>
+        </div>
+        <div class="text-area-wrap">
+          <textarea id="naturalStyleInput" placeholder="描述想要的语音风格...&#10;&#10;示例: 用轻快上扬的语调向领导报喜，语速稍快，带着查到成绩后压抑不住的激动与小骄傲"></textarea>
+        </div>
+      </div>
+
+      <!-- Tag Mode -->
+      <div id="tagMode" style="display:none">
+        <div style="margin-bottom:8px;font-size:12px;color:var(--text2)">点击标签插入到文本中，或在文本编辑器中手动输入 <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">(风格)</code> 和 <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">[标签]</code></div>
+        <div class="tag-section">
+          <div class="tag-section-title">基础情绪</div>
+          <div class="tag-group">
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">开心</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">悲伤</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">愤怒</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">恐惧</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">惊讶</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">兴奋</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">委屈</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">平静</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">冷漠</div>
+          </div>
+        </div>
+        <div class="tag-section">
+          <div class="tag-section-title">复合情绪</div>
+          <div class="tag-group">
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">怅然</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">欣慰</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">无奈</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">愧疚</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">释然</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">嫉妒</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">厌倦</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">忐忑</div>
+            <div class="tag-btn emotion" onclick="insertStyleTag(this)">动情</div>
+          </div>
+        </div>
+        <div class="tag-section">
+          <div class="tag-section-title">整体语调</div>
+          <div class="tag-group">
+            <div class="tag-btn style" onclick="insertStyleTag(this)">温柔</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">高冷</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">活泼</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">严肃</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">慵懒</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">俏皮</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">深沉</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">干练</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">凌厉</div>
+          </div>
+        </div>
+        <div class="tag-section">
+          <div class="tag-section-title">音色定位</div>
+          <div class="tag-group">
+            <div class="tag-btn style" onclick="insertStyleTag(this)">磁性</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">醇厚</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">清亮</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">空灵</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">稚嫩</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">苍老</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">甜美</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">沙哑</div>
+            <div class="tag-btn style" onclick="insertStyleTag(this)">醇雅</div>
+          </div>
+        </div>
+        <div class="tag-section">
+          <div class="tag-section-title">人设腔调 / 方言</div>
+          <div class="tag-group">
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">夹子音</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">御姐音</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">正太音</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">大叔音</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">台湾腔</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">东北话</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">四川话</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">河南话</div>
+            <div class="tag-btn dialect" onclick="insertStyleTag(this)">粤语</div>
+          </div>
+        </div>
+        <div class="tag-section">
+          <div class="tag-section-title">角色扮演 / 唱歌</div>
+          <div class="tag-group">
+            <div class="tag-btn expression" onclick="insertStyleTag(this)">孙悟空</div>
+            <div class="tag-btn expression" onclick="insertStyleTag(this)">林黛玉</div>
+            <div class="tag-btn expression" onclick="insertStyleTag(this)">唱歌</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Director Mode -->
+      <div id="directorMode" style="display:none">
+        <div class="director-fields">
+          <div class="director-field">
+            <label>【角色】身份、性格、气质、说话习惯</label>
+            <textarea id="directorRole" placeholder="例：百年门阀岑家的现任大当家，自出生便被过继给祖庙的守门老人抚养..."></textarea>
+          </div>
+          <div class="director-field">
+            <label>【场景】此刻发生了什么、和谁说话、情绪位置</label>
+            <textarea id="directorScene" placeholder="例：在祠堂的阴影里，看着那个不顾一切冲破保安防线来找她..."></textarea>
+          </div>
+          <div class="director-field">
+            <label>【指导】语速、气息、停顿、重音、共鸣、情绪起伏</label>
+            <textarea id="directorGuide" placeholder="例：冰冷、慵懒却极具威压的低音御姐。发声通道非常松弛..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Text Editor -->
+    <div class="card">
+      <div class="card-title"><span class="icon">📝</span> 合成文本</div>
+      <div style="margin-bottom:8px;font-size:12px;color:var(--text2)">
+        <span id="tagInsertHint">在文本任意位置插入 <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">[音频标签]</code> 进行细粒度控制</span>
+      </div>
+      <div class="text-area-wrap">
+        <textarea id="synthText" placeholder="输入要合成的文本内容...&#10;&#10;示例: 嘿嘿，你猜怎么着？我刚才在路上捡到一百块钱！[笑] 运气好到我自己都不敢相信。" oninput="updateRequestPreview();updateCharCount()"></textarea>
+        <span class="char-count" id="charCount">0 字</span>
+      </div>
+    </div>
+
+    <!-- Audio Tag Palette -->
+    <div class="card">
+      <div class="collapsible-header" onclick="toggleSection('audioTagBody','audioTagArrow')">
+        <div class="card-title" style="margin-bottom:0"><span class="icon">🏷</span> 音频标签速查</div>
+        <span class="arrow open" id="audioTagArrow">▶</span>
+      </div>
+      <div class="collapsible-body" id="audioTagBody" style="max-height:800px">
+        <div style="margin-top:12px">
+          <div class="tag-section">
+            <div class="tag-section-title">呼吸与节奏</div>
+            <div class="tag-group">
+              <div class="tag-btn pace" onclick="insertAudioTag('吸气')">吸气</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('深呼吸')">深呼吸</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('叹气')">叹气</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('长叹一口气')">长叹一口气</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('喘息')">喘息</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('屏息')">屏息</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('沉默片刻')">沉默片刻</div>
+            </div>
+          </div>
+          <div class="tag-section">
+            <div class="tag-section-title">情绪状态</div>
+            <div class="tag-group">
+              <div class="tag-btn emotion" onclick="insertAudioTag('紧张')">紧张</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('害怕')">害怕</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('激动')">激动</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('疲惫')">疲惫</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('委屈')">委屈</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('撒娇')">撒娇</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('心虚')">心虚</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('震惊')">震惊</div>
+              <div class="tag-btn emotion" onclick="insertAudioTag('不耐烦')">不耐烦</div>
+            </div>
+          </div>
+          <div class="tag-section">
+            <div class="tag-section-title">语音特征</div>
+            <div class="tag-group">
+              <div class="tag-btn pace" onclick="insertAudioTag('颤抖')">颤抖</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('声音颤抖')">声音颤抖</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('变调')">变调</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('破音')">破音</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('鼻音')">鼻音</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('气声')">气声</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('沙哑')">沙哑</div>
+            </div>
+          </div>
+          <div class="tag-section">
+            <div class="tag-section-title">哭笑表达</div>
+            <div class="tag-group">
+              <div class="tag-btn expression" onclick="insertAudioTag('笑')">笑</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('轻笑')">轻笑</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('大笑')">大笑</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('冷笑')">冷笑</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('苦笑')">苦笑</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('抽泣')">抽泣</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('呜咽')">呜咽</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('哽咽')">哽咽</div>
+              <div class="tag-btn expression" onclick="insertAudioTag('嚎啕大哭')">嚎啕大哭</div>
+            </div>
+          </div>
+          <div class="tag-section">
+            <div class="tag-section-title">音量与语速</div>
+            <div class="tag-group">
+              <div class="tag-btn pace" onclick="insertAudioTag('提高音量')">提高音量</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('压低声音')">压低声音</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('小声')">小声</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('喊话')">喊话</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('语速加快')">语速加快</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('语速放慢')">语速放慢</div>
+              <div class="tag-btn pace" onclick="insertAudioTag('碎碎念')">碎碎念</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generate Button -->
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-primary btn-block" id="generateBtn" onclick="generateSpeech()" style="flex:1;padding:14px;font-size:15px">
+        🎙 开始合成
+      </button>
+      <button class="btn btn-secondary" onclick="clearAll()" data-tooltip="清空所有" style="padding:14px 16px">🗑</button>
+    </div>
+
+    <!-- Audio Player -->
+    <div class="card" id="playerCard" style="display:none">
+      <div class="card-title"><span class="icon">🔊</span> 合成结果</div>
+      <div class="player-bar">
+        <button class="player-btn" id="playBtn" onclick="togglePlay()">▶</button>
+        <div class="player-info">
+          <div class="player-title" id="playerTitle">等待合成...</div>
+          <div class="player-meta">
+            <span id="playerModel">-</span>
+            <span id="playerVoice">-</span>
+            <span id="playerDuration">-</span>
+          </div>
+        </div>
+        <div class="player-wave" id="playerWave"></div>
+        <div class="player-time" id="playerTime">0:00</div>
+      </div>
+      <div class="timing" id="timingInfo" style="display:none">
+        <div class="t-item">请求耗时: <span class="t-val" id="reqTime">-</span></div>
+        <div class="t-item">音频大小: <span class="t-val" id="audioSize">-</span></div>
+        <div class="t-item">采样率: <span class="t-val">24kHz</span></div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="downloadAudio()">💾 下载音频</button>
+        <button class="btn btn-secondary btn-sm" onclick="copyAudioBase64()">📋 复制Base64</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel: Preview & History -->
+  <div class="right-panel">
+    <!-- Request Preview -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title"><span class="icon">📋</span> API 请求预览</div>
+      <div class="code-lang-tabs">
+        <div class="code-lang-tab active" onclick="setCodeLang('curl',this)">cURL</div>
+        <div class="code-lang-tab" onclick="setCodeLang('python',this)">Python</div>
+        <div class="code-lang-tab" onclick="setCodeLang('json',this)">JSON</div>
+      </div>
+      <div class="code-block" id="codePreview">
+        <button class="copy-btn" onclick="copyCode()">复制</button>
+        <code id="codeContent">// 配置参数后自动生成请求代码</code>
+      </div>
+    </div>
+
+    <!-- Style Preview -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title"><span class="icon">👁</span> 组装预览</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">最终发送给 API 的 messages 结构</div>
+      <div class="code-block" style="max-height:250px">
+        <code id="messagePreview" style="color:var(--text2)">配置参数后自动预览</code>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="card">
+      <div class="card-title"><span class="icon">🕐</span> 合成历史 <span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:auto" id="historyCount">0 条</span></div>
+      <div id="historyList">
+        <div class="no-audio">
+          <div class="no-audio-icon">🎙</div>
+          <div class="no-audio-text">还没有合成记录<br>开始你的第一次合成吧</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="loading-spinner">
+    <div class="spinner"></div>
+    <div class="loading-text">正在合成语音...</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px" id="loadingTimer">0.0s</div>
+  </div>
+</div>
+
+<script>
+// ===== State =====
+const state = {
+  model: 'mimo-v2.5-tts',
+  voice: '冰糖',
+  styleMode: 'natural',
+  audioFormat: 'wav',
+  streamMode: false,
+  codeLang: 'curl',
+  history: [],
+  audioBlob: null,
+  audioUrl: null,
+  audioElement: null,
+  cloneFile: null,
+  cloneBase64: null,
+  isPlaying: false,
+  loadingTimer: null,
+};
+
+// ===== Dimension Templates =====
+const dimensionTemplates = {
+  gender: '"一位三十多岁的女性"',
+  texture: '"嗓音醇厚，带着微微的磁性和温暖的共鸣"',
+  emotion: '"语气温柔中带着一丝疲惫，但仍然充满关怀"',
+  pace: '"语速缓慢而从容，每句话之间留有恰到好处的停顿"',
+  role: '"像一位经验丰富的纪录片旁白解说员"',
+  style: '"说话非常口语化，偶尔夹杂笑声，像在和老朋友聊天"',
+  scene: '"仿佛在安静的深夜书房里，独自对着录音设备娓娓道来"',
+  era: '"带有八十年代译制片配音的质感，字正腔圆但不失温度"',
+};
+
+// ===== Preset Voice Design =====
+const designPresets = {
+  asmr: 'Young female, extreme close-up with a binaural, ear-to-ear ASMR feel. Audible breathing, subtle swallowing, and soft natural lip sounds. She speaks very slowly, creating a deeply relaxing and immersive experience.',
+  narrator: '一位沉稳的中年男性，声音低沉而富有磁性，语速均匀且从容不迫，带有央视纪录片解说员的专业质感，每个字都咬字清晰，充满历史的厚重感。',
+  radio: '深夜电台DJ，声音温暖而略带沙哑，像是在黑暗中点了一盏灯。语速慵懒随性，偶尔轻笑，偶尔叹气，像一个老朋友在深夜陪你聊天。',
+};
+
+// ===== Preset Style Descriptions =====
+const stylePresets = {
+  '播报': '用标准的新闻播报语调，沉稳庄重，语速均匀，咬字清晰，充满权威感和专业感。',
+  '温柔': '用非常轻柔、温暖的声音，像在耳边低语，语速缓慢，带着深深的关怀和安抚。',
+  '激动': '用极度兴奋和激动的语调，声音高亢明亮，语速偏快，带着压抑不住的喜悦和骄傲。',
+  '悲伤': '用低沉、略带哽咽的声音，语速缓慢，每句话都像从心底挤出来一样，充满无奈和伤感。',
+  '搞笑': '用夸张戏谑的语气，时不时破音或变调，像在表演脱口秀，充满喜感和调侃。',
+  '电台': '用温暖慵懒的声线，像深夜电台主持人，语速不紧不慢，带着微微的沙哑和磁性，偶尔轻笑。',
+};
+
+// ===== Functions =====
+function selectModel(el) {
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  state.model = el.dataset.model;
+
+  // Toggle panels
+  document.getElementById('voiceSelectorCard').style.display = state.model === 'mimo-v2.5-tts' ? '' : 'none';
+  document.getElementById('voiceDesignCard').style.display = state.model === 'mimo-v2.5-tts-voicedesign' ? '' : 'none';
+  document.getElementById('voiceCloneCard').style.display = state.model === 'mimo-v2.5-tts-voiceclone' ? '' : 'none';
+
+  updateRequestPreview();
+  updateMessagePreview();
+}
+
+function selectVoice(el) {
+  document.querySelectorAll('.voice-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  state.voice = el.dataset.voice;
+  updateRequestPreview();
+  updateMessagePreview();
+}
+
+function setStyleMode(mode) {
+  state.styleMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.mode-tab[data-mode="${mode}"]`).classList.add('active');
+  document.getElementById('naturalMode').style.display = mode === 'natural' || mode === 'director' ? '' : 'none';
+  document.getElementById('tagMode').style.display = mode === 'tag' ? '' : 'none';
+  document.getElementById('directorMode').style.display = mode === 'director' ? '' : 'none';
+
+  // Hide natural mode when in tag mode
+  if (mode === 'tag') document.getElementById('naturalMode').style.display = 'none';
+  if (mode === 'director') document.getElementById('naturalMode').style.display = 'none';
+
+  updateRequestPreview();
+  updateMessagePreview();
+}
+
+function insertStyleTag(el) {
+  const tag = el.textContent;
+  const textArea = document.getElementById('synthText');
+  const cursorPos = textArea.selectionStart;
+  const text = textArea.value;
+  const insert = `(${tag})`;
+  textArea.value = text.slice(0, cursorPos) + insert + text.slice(cursorPos);
+  textArea.focus();
+  textArea.setSelectionRange(cursorPos + insert.length, cursorPos + insert.length);
+  updateRequestPreview();
+  updateCharCount();
+}
+
+function insertAudioTag(tag) {
+  const textArea = document.getElementById('synthText');
+  const cursorPos = textArea.selectionStart;
+  const text = textArea.value;
+  const insert = `[${tag}]`;
+  textArea.value = text.slice(0, cursorPos) + insert + text.slice(cursorPos);
+  textArea.focus();
+  textArea.setSelectionRange(cursorPos + insert.length, cursorPos + insert.length);
+  updateRequestPreview();
+  updateCharCount();
+}
+
+function insertDimension(el, key) {
+  el.classList.toggle('selected');
+  const prompt = document.getElementById('voiceDesignPrompt');
+  const template = dimensionTemplates[key];
+  if (prompt.value && !prompt.value.endsWith('\n') && !prompt.value.endsWith(' ')) {
+    prompt.value += '\n';
+  }
+  prompt.value += template + '\n';
+  updateRequestPreview();
+}
+
+function applyPresetStyle(name) {
+  document.getElementById('naturalStyleInput').value = stylePresets[name];
+  updateRequestPreview();
+  updateMessagePreview();
+}
+
+function loadDesignPreset(name) {
+  document.getElementById('voiceDesignPrompt').value = designPresets[name];
+  updateRequestPreview();
+  updateMessagePreview();
+  generateSampleText();
+}
+
+function generateSampleText() {
+  const desc = document.getElementById('voiceDesignPrompt').value;
+  if (!desc) return;
+  // Simple heuristic text generation
+  const samples = {
+    'ASMR': "嘘……别说话……就这样静静地听着……感受这一刻的宁静……让所有的疲惫都慢慢消散……",
+    'asmr': "嘘……别说话……就这样静静地听着……感受这一刻的宁静……让所有的疲惫都慢慢消散……",
+    'narrator': "在那遥远的北方，有一片被时光遗忘的土地。千百年来，人们在这里耕种、歌唱、老去。",
+    'radio': "夜深了，城市安静下来。此刻的你，是不是也像我一样，捧着一杯温热的茶，在这个深夜里寻找一点温暖？",
+    '纪录片': "千百年的时光在这一刻凝固。每一块砖石，每一道裂痕，都在无声地诉说着那些被遗忘的故事。",
+    '老年': "年轻人啊，我跟你讲，这做人呐，就像煮粥，急不得。火候到了，自然就香了。",
+    'young': "Oh my god, you won't believe what just happened! I literally can't even right now!",
+  };
+
+  let text = '';
+  for (const [key, val] of Object.entries(samples)) {
+    if (desc.toLowerCase().includes(key.toLowerCase())) {
+      text = val;
+      break;
+    }
+  }
+  if (!text) {
+    text = "你好，这是一段测试语音合成效果的示例文本。希望通过这段文字，能够展示出这个声音的独特魅力。";
+  }
+  document.getElementById('synthText').value = text;
+  updateRequestPreview();
+  updateCharCount();
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  if (file.size > maxSize) {
+    showToast('文件太大，Base64 编码后不能超过 10MB', 'error');
+    return;
+  }
+  state.cloneFile = file;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    state.cloneBase64 = e.target.result;
+    const wrap = document.getElementById('uploadedFileWrap');
+    wrap.innerHTML = `
+      <div class="uploaded-file">
+        <div class="file-icon">🎵</div>
+        <div class="file-info">
+          <div class="file-name">${file.name}</div>
+          <div class="file-size">${(file.size / 1024).toFixed(1)} KB · ${file.type}</div>
+        </div>
+        <button class="file-remove" onclick="removeUploadedFile()">✕</button>
+      </div>
+    `;
+    updateRequestPreview();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeUploadedFile() {
+  state.cloneFile = null;
+  state.cloneBase64 = null;
+  document.getElementById('uploadedFileWrap').innerHTML = '';
+  document.querySelector('#uploadZone input[type=file]').value = '';
+  updateRequestPreview();
+}
+
+function updateCharCount() {
+  const len = document.getElementById('synthText').value.length;
+  document.getElementById('charCount').textContent = `${len} 字`;
+}
+
+function toggleSection(bodyId, arrowId) {
+  const body = document.getElementById(bodyId);
+  const arrow = document.getElementById(arrowId);
+  const isOpen = body.style.maxHeight !== '0px';
+  body.style.maxHeight = isOpen ? '0px' : '800px';
+  arrow.classList.toggle('open', !isOpen);
+}
+
+function toggleApiConfig() {
+  const card = document.getElementById('apiConfigCard');
+  card.style.display = card.style.display === 'none' ? '' : 'none';
+}
+
+function saveApiConfig() {
+  const key = document.getElementById('apiKeyInput').value;
+  const url = document.getElementById('baseUrlInput').value;
+  if (key) localStorage.setItem('mimo_api_key', key);
+  if (url) localStorage.setItem('mimo_base_url', url);
+  document.getElementById('apiConfigCard').style.display = 'none';
+  showToast('API 配置已保存', 'success');
+}
+
+// Load saved config
+(function() {
+  const key = localStorage.getItem('mimo_api_key');
+  const url = localStorage.getItem('mimo_base_url');
+  if (key) document.getElementById('apiKeyInput').value = key;
+  if (url) document.getElementById('baseUrlInput').value = url;
+})();
+
+// ===== Build Request =====
+function buildRequest() {
+  const messages = [];
+  const text = document.getElementById('synthText').value.trim();
+
+  if (state.model === 'mimo-v2.5-tts') {
+    // Preset voice
+    let userContent = '';
+    if (state.styleMode === 'natural') {
+      userContent = document.getElementById('naturalStyleInput').value.trim();
+    } else if (state.styleMode === 'director') {
+      const role = document.getElementById('directorRole').value.trim();
+      const scene = document.getElementById('directorScene').value.trim();
+      const guide = document.getElementById('directorGuide').value.trim();
+      const parts = [];
+      if (role) parts.push(`【角色】${role}`);
+      if (scene) parts.push(`【场景】${scene}`);
+      if (guide) parts.push(`【指导】${guide}`);
+      userContent = parts.join('\n\n');
+    }
+    // tag mode: user content is empty, tags are in assistant content
+    if (userContent) {
+      messages.push({ role: 'user', content: userContent });
+    }
+    messages.push({ role: 'assistant', content: text });
+
+    return {
+      model: state.model,
+      messages,
+      audio: {
+        format: state.audioFormat,
+        voice: state.voice,
+      },
+      stream: state.streamMode,
+    };
+  } else if (state.model === 'mimo-v2.5-tts-voicedesign') {
+    const voiceDesc = document.getElementById('voiceDesignPrompt').value.trim();
+    messages.push({ role: 'user', content: voiceDesc });
+    messages.push({ role: 'assistant', content: text });
+    return {
+      model: state.model,
+      messages,
+      audio: { format: state.audioFormat },
+      stream: state.streamMode,
+    };
+  } else if (state.model === 'mimo-v2.5-tts-voiceclone') {
+    let userContent = '';
+    if (state.styleMode === 'natural') {
+      userContent = document.getElementById('naturalStyleInput').value.trim();
+    } else if (state.styleMode === 'director') {
+      const role = document.getElementById('directorRole').value.trim();
+      const scene = document.getElementById('directorScene').value.trim();
+      const guide = document.getElementById('directorGuide').value.trim();
+      const parts = [];
+      if (role) parts.push(`【角色】${role}`);
+      if (scene) parts.push(`【场景】${scene}`);
+      if (guide) parts.push(`【指导】${guide}`);
+      userContent = parts.join('\n\n');
+    }
+    messages.push({ role: 'user', content: userContent });
+    messages.push({ role: 'assistant', content: text });
+
+    const voiceValue = state.cloneBase64 || 'data:audio/wav;base64,';
+    return {
+      model: state.model,
+      messages,
+      audio: {
+        format: state.audioFormat,
+        voice: voiceValue,
+      },
+      stream: state.streamMode,
+    };
+  }
+}
+
+function generateCurl(req) {
+  const apiKey = document.getElementById('apiKeyInput').value || '$MIMO_API_KEY';
+  const baseUrl = document.getElementById('baseUrlInput').value;
+  let data = JSON.stringify(req, null, 2);
+  // Truncate long base64 in voice
+  if (req.audio.voice && req.audio.voice.length > 100) {
+    const truncated = JSON.parse(JSON.stringify(req));
+    truncated.audio.voice = 'data:{MIME_TYPE};base64,$BASE64_AUDIO';
+    data = JSON.stringify(truncated, null, 2);
+  }
+  return `curl --location --request POST '${baseUrl}/chat/completions' \\
+--header "api-key: ${apiKey}" \\
+--header 'Content-Type: application/json' \\
+--data-raw '${data}'`;
+}
+
+function generatePython(req) {
+  const baseUrl = document.getElementById('baseUrlInput').value;
+  const apiKey = document.getElementById('apiKeyInput').value || 'os.environ.get("MIMO_API_KEY")';
+  const isStream = req.stream;
+  const isClone = req.model === 'mimo-v2.5-tts-voiceclone';
+  const isDesign = req.model === 'mimo-v2.5-tts-voicedesign';
+
+  let preCode = '';
+  if (isClone) {
+    preCode = `import base64, os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=${apiKey.startsWith('os') ? apiKey : `"${apiKey}"`},
+    base_url="${baseUrl}"
+)
+
+with open("voice.mp3", "rb") as f:
+    voice_bytes = f.read()
+voice_base64 = base64.b64encode(voice_bytes).decode("utf-8")
+`;
+  } else {
+    preCode = `import os
+from openai import OpenAI
+${isStream ? 'import base64\nimport numpy as np\nimport soundfile as sf' : 'import base64'}
+
+client = OpenAI(
+    api_key=${apiKey.startsWith('os') ? apiKey : `"${apiKey}"`},
+    base_url="${baseUrl}"
+)
+`;
+  }
+
+  const messagesStr = JSON.stringify(req.messages, null, 8).replace(/\n/g, '\n    ');
+  const audioStr = JSON.stringify(req.audio, null, 6).replace(/\n/g, '\n    ');
+
+  if (isClone) {
+    return `${preCode}
+completion = client.chat.completions.create(
+    model="${req.model}",
+    messages=${messagesStr},
+    audio={
+        "format": "${req.audio.format}",
+        "voice": f"data:audio/mpeg;base64,{voice_base64}"
+    }${isStream ? ',\n    stream=True' : ''}
+)
+
+${isStream ? genStreamSave() : genNonStreamSave()}`;
+  }
+
+  return `${preCode}
+completion = client.chat.completions.create(
+    model="${req.model}",
+    messages=${messagesStr},
+    audio=${audioStr}${isStream ? ',\n    stream=True' : ''}
+)
+
+${isStream ? genStreamSave() : genNonStreamSave()}`;
+}
+
+function genNonStreamSave() {
+  return `message = completion.choices[0].message
+audio_bytes = base64.b64decode(message.audio.data)
+with open("audio_file.wav", "wb") as f:
+    f.write(audio_bytes)
+print("Audio saved to audio_file.wav")`;
+}
+
+function genStreamSave() {
+  return `# 24kHz PCM16LE mono audio
+collected_chunks = np.array([], dtype=np.float32)
+
+for chunk in completion:
+    if not chunk.choices:
+        continue
+    delta = chunk.choices[0].delta
+    audio = getattr(delta, "audio", None)
+    if audio is not None:
+        pcm_bytes = base64.b64decode(audio["data"])
+        np_pcm = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        collected_chunks = np.concatenate((collected_chunks, np_pcm))
+
+sf.write("output.wav", collected_chunks, samplerate=24000)
+print("Audio saved to output.wav")`;
+}
+
+function updateRequestPreview() {
+  const req = buildRequest();
+  setCodeContent(req);
+  updateMessagePreview();
+}
+
+function setCodeContent(req) {
+  const codeEl = document.getElementById('codeContent');
+  switch (state.codeLang) {
+    case 'curl':
+      codeEl.textContent = generateCurl(req);
+      break;
+    case 'python':
+      codeEl.textContent = generatePython(req);
+      break;
+    case 'json':
+      codeEl.textContent = JSON.stringify(req, null, 2);
+      break;
+  }
+}
+
+function setCodeLang(lang, el) {
+  state.codeLang = lang;
+  document.querySelectorAll('.code-lang-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  updateRequestPreview();
+}
+
+function updateMessagePreview() {
+  const req = buildRequest();
+  const preview = document.getElementById('messagePreview');
+  preview.textContent = JSON.stringify(req.messages, null, 2);
+}
+
+function copyCode() {
+  const code = document.getElementById('codeContent').textContent;
+  navigator.clipboard.writeText(code).then(() => showToast('代码已复制', 'success'));
+}
+
+// ===== Generate Speech =====
+async function generateSpeech() {
+  const apiKey = document.getElementById('apiKeyInput').value;
+  const baseUrl = document.getElementById('baseUrlInput').value;
+  const text = document.getElementById('synthText').value.trim();
+
+  if (!apiKey) {
+    showToast('请先配置 API Key', 'error');
+    toggleApiConfig();
+    return;
+  }
+  if (!text) {
+    showToast('请输入合成文本', 'error');
+    return;
+  }
+  if (state.model === 'mimo-v2.5-tts-voiceclone' && !state.cloneBase64) {
+    showToast('请先上传音频样本', 'error');
+    return;
+  }
+  if (state.model === 'mimo-v2.5-tts-voicedesign' && !document.getElementById('voiceDesignPrompt').value.trim()) {
+    showToast('请输入音色描述', 'error');
+    return;
+  }
+
+  const req = buildRequest();
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 合成中...';
+
+  document.getElementById('statusDot').className = 'status-dot busy';
+  document.getElementById('statusText').textContent = '合成中...';
+  document.getElementById('loadingOverlay').style.display = '';
+
+  let elapsed = 0;
+  state.loadingTimer = setInterval(() => {
+    elapsed += 0.1;
+    document.getElementById('loadingTimer').textContent = `${elapsed.toFixed(1)}s`;
+  }, 100);
+
+  const startTime = performance.now();
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify(req),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`API Error ${resp.status}: ${err}`);
+    }
+
+    const data = await resp.json();
+    const elapsedMs = Math.round(performance.now() - startTime);
+
+    if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.audio) {
+      const audioData = data.choices[0].message.audio.data;
+      const audioBytes = base64ToUint8Array(audioData);
+      const blob = new Blob([audioBytes], { type: state.audioFormat === 'wav' ? 'audio/wav' : 'audio/pcm' });
+
+      if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
+      state.audioBlob = blob;
+      state.audioUrl = URL.createObjectURL(blob);
+
+      // Show player
+      document.getElementById('playerCard').style.display = '';
+      document.getElementById('playerTitle').textContent = text.slice(0, 40) + (text.length > 40 ? '...' : '');
+      document.getElementById('playerModel').textContent = req.model;
+      document.getElementById('playerVoice').textContent = state.model === 'mimo-v2.5-tts-voicedesign' ? '自定义' : (state.model === 'mimo-v2.5-tts-voiceclone' ? '复刻' : state.voice);
+      document.getElementById('reqTime').textContent = `${(elapsedMs / 1000).toFixed(2)}s`;
+      document.getElementById('audioSize').textContent = `${(blob.size / 1024).toFixed(1)} KB`;
+
+      document.getElementById('timingInfo').style.display = '';
+
+      // Generate waveform bars
+      generateWaveform();
+
+      // Add to history
+      addToHistory(text, req, state.audioUrl, blob.size, elapsedMs);
+
+      showToast(`合成完成！(${(elapsedMs / 1000).toFixed(1)}s)`, 'success');
+    } else {
+      throw new Error('Invalid response: no audio data');
+    }
+  } catch (err) {
+    showToast(`合成失败: ${err.message}`, 'error');
+    console.error(err);
+  } finally {
+    clearInterval(state.loadingTimer);
+    document.getElementById('loadingOverlay').style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '🎙 开始合成';
+    document.getElementById('statusDot').className = 'status-dot ready';
+    document.getElementById('statusText').textContent = '就绪';
+  }
+}
+
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// ===== Audio Player =====
+function togglePlay() {
+  if (!state.audioUrl) return;
+  const btn = document.getElementById('playBtn');
+
+  if (state.isPlaying) {
+    if (state.audioElement) {
+      state.audioElement.pause();
+      state.audioElement.currentTime = 0;
+    }
+    state.isPlaying = false;
+    btn.textContent = '▶';
+    return;
+  }
+
+  // 使用 HTML5 Audio 元素播放
+  if (!state.audioElement) {
+    state.audioElement = new Audio();
+    state.audioElement.onended = () => {
+      state.isPlaying = false;
+      btn.textContent = '▶';
+    };
+    state.audioElement.onerror = () => {
+      state.isPlaying = false;
+      btn.textContent = '▶';
+      showToast('播放失败，请尝试下载后播放', 'error');
+    };
+  }
+
+  state.audioElement.src = state.audioUrl;
+  state.audioElement.play()
+    .then(() => {
+      state.isPlaying = true;
+      btn.textContent = '⏸';
+      animateWaveform();
+    })
+    .catch(err => {
+      console.error('Playback error:', err);
+      showToast('播放失败，请尝试下载后播放', 'error');
+    });
+}
+
+function animateWaveform() {
+  const bars = document.querySelectorAll('#playerWave .bar');
+  const timeEl = document.getElementById('playerTime');
+
+  function update() {
+    if (!state.isPlaying || !state.audioElement) return;
+    const elapsed = state.audioElement.currentTime;
+    const duration = state.audioElement.duration || 1;
+    const progress = Math.min(elapsed / duration, 1);
+    const mins = Math.floor(elapsed / 60);
+    const secs = Math.floor(elapsed % 60);
+    timeEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+    bars.forEach((bar, i) => {
+      const h = 8 + Math.random() * 28 + Math.sin(elapsed * 3 + i * 0.5) * 8;
+      bar.style.height = `${h}px`;
+      bar.style.opacity = i / bars.length < progress ? '1' : '0.3';
+    });
+
+    requestAnimationFrame(update);
+  }
+  update();
+}
+
+function generateWaveform() {
+  const wave = document.getElementById('playerWave');
+  wave.innerHTML = '';
+  for (let i = 0; i < 50; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.height = `${8 + Math.random() * 24}px`;
+    bar.style.opacity = '0.3';
+    wave.appendChild(bar);
+  }
+}
+
+async function downloadAudio() {
+  if (!state.audioBlob) return;
+  const ext = state.audioFormat === 'wav' ? 'wav' : 'pcm';
+  const defaultName = `tts_${Date.now()}.${ext}`;
+
+  // 检测是否在 Tauri 环境中
+  if (window.__TAURI__) {
+    try {
+      // 使用 Tauri 的保存对话框
+      const filePath = await window.__TAURI__.dialog.save({
+        defaultPath: defaultName,
+        filters: [{
+          name: 'Audio',
+          extensions: [ext]
+        }]
+      });
+
+      if (filePath) {
+        // 将 blob 转换为字节数组
+        const arrayBuffer = await state.audioBlob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // 使用 Tauri 的文件系统 API 写入文件
+        await window.__TAURI__.fs.writeFile(filePath, uint8Array);
+        showToast('音频已保存', 'success');
+      }
+    } catch (err) {
+      console.error('Save error:', err);
+      showToast('保存失败: ' + err.message, 'error');
+    }
+  } else {
+    // 非 Tauri 环境，使用传统下载方式
+    const a = document.createElement('a');
+    a.href = state.audioUrl;
+    a.download = defaultName;
+    a.click();
+  }
+}
+
+function copyAudioBase64() {
+  if (!state.audioBlob) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const base64 = reader.result.split(',')[1];
+    navigator.clipboard.writeText(base64).then(() => showToast('Base64 已复制', 'success'));
+  };
+  reader.readAsDataURL(state.audioBlob);
+}
+
+// ===== History =====
+function addToHistory(text, req, audioUrl, size, elapsedMs) {
+  const item = {
+    text,
+    model: req.model,
+    voice: state.model === 'mimo-v2.5-tts-voicedesign' ? '自定义' : (state.model === 'mimo-v2.5-tts-voiceclone' ? '复刻' : state.voice),
+    audioUrl,
+    size,
+    elapsedMs,
+    time: new Date().toLocaleTimeString(),
+  };
+  state.history.unshift(item);
+  if (state.history.length > 20) state.history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  document.getElementById('historyCount').textContent = `${state.history.length} 条`;
+
+  if (state.history.length === 0) {
+    list.innerHTML = '<div class="no-audio"><div class="no-audio-icon">🎙</div><div class="no-audio-text">还没有合成记录</div></div>';
+    return;
+  }
+
+  list.innerHTML = state.history.map((h, i) => `
+    <div class="history-item" onclick="playHistory(${i})">
+      <div class="h-play">▶</div>
+      <div class="h-info">
+        <div class="h-text">${escapeHtml(h.text.slice(0, 50))}</div>
+        <div class="h-meta">
+          <span>${h.time}</span>
+          <span>${(h.elapsedMs / 1000).toFixed(1)}s</span>
+          <span>${(h.size / 1024).toFixed(0)}KB</span>
+          <span class="h-badge">${h.voice}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function playHistory(index) {
+  const item = state.history[index];
+  if (!item) return;
+  if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
+  state.audioUrl = item.audioUrl;
+  state.audioBlob = null; // We don't keep the blob, but URL should still work
+
+  document.getElementById('playerCard').style.display = '';
+  document.getElementById('playerTitle').textContent = item.text.slice(0, 40) + (item.text.length > 40 ? '...' : '');
+  document.getElementById('playerModel').textContent = item.model;
+  document.getElementById('playerVoice').textContent = item.voice;
+  document.getElementById('playerDuration').textContent = '';
+
+  generateWaveform();
+  togglePlay();
+}
+
+// ===== Utils =====
+function showToast(msg, type = '') {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function clearAll() {
+  document.getElementById('synthText').value = '';
+  document.getElementById('naturalStyleInput').value = '';
+  document.getElementById('directorRole').value = '';
+  document.getElementById('directorScene').value = '';
+  document.getElementById('directorGuide').value = '';
+  document.getElementById('voiceDesignPrompt').value = '';
+  document.getElementById('playerCard').style.display = 'none';
+  updateRequestPreview();
+  updateCharCount();
+  showToast('已清空', 'success');
+}
+
+// ===== Init =====
+// 确保初始状态正确
+document.getElementById('loadingOverlay').style.display = 'none';
+document.getElementById('statusDot').className = 'status-dot ready';
+document.getElementById('statusText').textContent = '就绪';
+document.getElementById('generateBtn').disabled = false;
+document.getElementById('generateBtn').textContent = '🎙 开始合成';
+
+updateRequestPreview();
+updateMessagePreview();
+generateWaveform();
+</script>
+</body>
+</html>

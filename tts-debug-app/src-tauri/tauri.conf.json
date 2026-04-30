@@ -1,0 +1,37 @@
+{
+  "productName": "MiMo TTS 调试平台",
+  "version": "1.0.0",
+  "identifier": "com.mimo.tts-debug",
+  "build": {
+    "frontendDist": "../src",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "MiMo V2.5 TTS 调试平台",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' https://token-plan-sgp.xiaomimimo.com https://api.xiaomimimo.com; script-src 'self' 'unsafe-inline' 'unsafe-hashes' 'unsafe-eval'; script-src-attr 'unsafe-inline' 'unsafe-hashes'; style-src 'self' 'unsafe-inline'; media-src 'self' blob:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

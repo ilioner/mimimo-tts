@@ -1,0 +1,12 @@
+{
+  "identifier": "default",
+  "description": "Default capability for the TTS debug app",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-save",
+    "fs:default",
+    "fs:allow-write-file"
+  ]
+}
