@@ -1219,15 +1219,28 @@ async function generateSpeech() {
     });
 
     if (!resp.ok) {
-      const err = await resp.text();
-      throw new Error(`API Error ${resp.status}: ${err}`);
+      const errText = await resp.text();
+      let errMsg = errText;
+      try {
+        const errJson = JSON.parse(errText);
+        errMsg = errJson.error?.message || errJson.message || errText;
+      } catch (e) {}
+      throw new Error(`[${resp.status}] ${errMsg}`);
     }
 
     const data = await resp.json();
+
+    if (data.error) {
+      throw new Error(data.error.message || JSON.stringify(data.error));
+    }
+
     const elapsedMs = Math.round(performance.now() - startTime);
 
     if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.audio) {
       const audioData = data.choices[0].message.audio.data;
+      if (!audioData) {
+        throw new Error('API 返回 audio 字段为空');
+      }
       const audioBytes = base64ToUint8Array(audioData);
       const blob = new Blob([audioBytes], { type: state.audioFormat === 'wav' ? 'audio/wav' : 'audio/pcm' });
 
@@ -1253,11 +1266,11 @@ async function generateSpeech() {
 
       showToast(`合成完成！(${(elapsedMs / 1000).toFixed(1)}s)`, 'success');
     } else {
-      throw new Error('Invalid response: no audio data');
+      throw new Error('API 返回数据无音频，请检查 API Key 和模型配置');
     }
   } catch (err) {
     showToast(`合成失败: ${err.message}`, 'error');
-    console.error(err);
+    console.error('TTS Error:', err);
   } finally {
     clearInterval(state.loadingTimer);
     document.getElementById('loadingOverlay').style.display = 'none';
@@ -1409,14 +1422,28 @@ function addToHistory(text, req, audioUrl, size, elapsedMs) {
     model: req.model,
     voice: state.model === 'mimo-v2.5-tts-voicedesign' ? '自定义' : (state.model === 'mimo-v2.5-tts-voiceclone' ? '复刻' : state.voice),
     audioUrl,
-    blob: state.audioBlob,
-    size,
-    elapsedMs,
+    size: size || 0,
+    elapsedMs: elapsedMs || 0,
     time: new Date().toLocaleTimeString(),
   };
   state.history.unshift(item);
   if (state.history.length > 20) state.history.pop();
+  saveHistory();
   renderHistory();
+}
+
+function saveHistory() {
+  try {
+    const items = state.history.map(h => ({
+      text: h.text,
+      model: h.model,
+      voice: h.voice,
+      size: h.size,
+      elapsedMs: h.elapsedMs,
+      time: h.time,
+    }));
+    localStorage.setItem('mimo_tts_history', JSON.stringify(items));
+  } catch (e) { /* ignore */ }
 }
 
 function renderHistory() {
@@ -1432,12 +1459,12 @@ function renderHistory() {
     <div class="history-item" onclick="playHistory(${i})">
       <div class="h-play">▶</div>
       <div class="h-info">
-        <div class="h-text">${escapeHtml(h.text.slice(0, 50))}</div>
+        <div class="h-text">${escapeHtml((h.text || '').slice(0, 50))}</div>
         <div class="h-meta">
-          <span>${h.time}</span>
-          <span>${(h.elapsedMs / 1000).toFixed(1)}s</span>
-          <span>${(h.size / 1024).toFixed(0)}KB</span>
-          <span class="h-badge">${h.voice}</span>
+          <span>${h.time || '-'}</span>
+          <span>${(h.elapsedMs || 0 / 1000).toFixed(1)}s</span>
+          <span>${(h.size || 0 / 1024).toFixed(0)}KB</span>
+          <span class="h-badge">${h.voice || '-'}</span>
         </div>
       </div>
     </div>
@@ -1453,19 +1480,19 @@ function playHistory(index) {
     URL.revokeObjectURL(state.audioUrl);
   }
 
-  // For history items, handle both URL and blob
-  if (item.audioUrl) {
-    state.audioUrl = item.audioUrl;
-    state.audioBlob = item.blob || null;
-  } else {
-    showToast('历史记录已过期', 'error');
+  // History items from localStorage don't have audioUrl (blob can't be serialized)
+  if (!item.audioUrl) {
+    showToast('历史记录无音频数据（刷新后丢失）', 'error');
     return;
   }
 
+  state.audioUrl = item.audioUrl;
+  state.audioBlob = item.blob || null;
+
   document.getElementById('playerCard').style.display = '';
-  document.getElementById('playerTitle').textContent = item.text.slice(0, 40) + (item.text.length > 40 ? '...' : '');
-  document.getElementById('playerModel').textContent = item.model;
-  document.getElementById('playerVoice').textContent = item.voice;
+  document.getElementById('playerTitle').textContent = (item.text || '').slice(0, 40) + ((item.text || '').length > 40 ? '...' : '');
+  document.getElementById('playerModel').textContent = item.model || '-';
+  document.getElementById('playerVoice').textContent = item.voice || '-';
   document.getElementById('playerDuration').textContent = '';
 
   generateWaveform();
